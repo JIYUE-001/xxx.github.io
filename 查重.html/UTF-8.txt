@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 移动端适配 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地文本相似度查重工具</title>
+    <style>
+        /* ===================== 全局基础样式 ===================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+            background-color: #f0f4f9;
+            color: #222;
+            padding: 24px 16px;
+            line-height: 1.7;
+        }
+        .wrapper {
+            max-width: 1140px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 22px;
+        }
+        header h1 {
+            font-size: 28px;
+            color: #2563eb;
+            margin-bottom: 6px;
+        }
+        header p {
+            color: #64748b;
+            font-size: 14px;
+        }
+        .notice {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e40af;
+            margin-bottom: 20px;
+        }
+
+        /* ===================== 双文本输入区域 ===================== */
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+        /* 手机端自动变成单列 */
+        @media (max-width: 768px) {
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        .input-card {
+            background: #ffffff;
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+        }
+        .input-card label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 240px;
+            padding: 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        textarea:focus {
+            border-color: #3b82f6;
+        }
+
+        /* ===================== 按钮组 ===================== */
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        button {
+            padding: 11px 22px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-check {
+            background-color: #2563eb;
+            color: white;
+        }
+        .btn-check:hover {
+            background-color: #1d4ed8;
+        }
+        .btn-clear {
+            background-color: #ef4444;
+            color: white;
+        }
+        .btn-clear:hover {
+            background-color: #dc2626;
+        }
+        .btn-copy {
+            background-color: #16a34a;
+            color: white;
+        }
+        .btn-copy:hover {
+            background-color: #15803d;
+        }
+
+        /* ===================== 结果面板 ===================== */
+        .result-panel {
+            background: #fff;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+            display: none;
+        }
+        .result-panel.active {
+            display: block;
+        }
+        .score-area {
+            text-align: center;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 18px;
+        }
+        .score-value {
+            font-size: 26px;
+            font-weight: bold;
+        }
+        /* 相似度颜色分级 */
+        .score-high {
+            color: #ef4444;
+        }
+        .score-mid {
+            color: #d97706;
+        }
+        .score-low {
+            color: #16a34a;
+        }
+        .compare-title {
+            font-weight: 600;
+            margin: 16px 0 8px;
+        }
+        .compare-view {
+            padding: 14px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            line-height: 1.8;
+            word-break: break-all;
+        }
+        /* 重复内容标红样式 */
+        .dup {
+            background-color: #fecdd3;
+            color: #be123c;
+            padding: 0 2px;
+            border-radius: 3px;
+        }
+
+        /* ===================== Toast提示 ===================== */
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e293b;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <header>
+            <h1>本地文本查重工具</h1>
+            <p>纯前端本地运算｜文本不上传服务器｜两段文本相似度比对</p>
+        </header>
+        <div class="notice">
+            💡 使用提示：本工具为相似度比对工具，仅用于自查参考，不等同于知网等学术查重系统；所有计算全部在浏览器本地完成，隐私安全。
+        </div>
+
+        <!-- 双文本输入框 -->
+        <div class="input-row">
+            <div class="input-card">
+                <label>文本A（原文）</label>
+                <textarea id="ta" placeholder="粘贴第一段文本，例如原文、初稿..."></textarea>
+            </div>
+            <div class="input-card">
+                <label>文本B（待检测文本）</label>
+                <textarea id="tb" placeholder="粘贴第二段文本，例如改写稿、作业..."></textarea>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="button-group">
+            <button class="btn-check" id="btnCheck">🔍 开始检测相似度</button>
+            <button class="btn-clear" id="btnClear">🗑️ 清空全部</button>
+            <button class="btn-copy" id="btnCopy">📋 复制检测结果</button>
+        </div>
+
+        <!-- 结果展示区域 -->
+        <div class="result-panel" id="resultBox">
+            <div class="score-area">
+                <div>相似度：<span class="score-value" id="scoreText">0%</span></div>
+            </div>
+            <div class="compare-title">文本A（标红为重复片段）</div>
+            <div class="compare-view" id="viewA"></div>
+            <div class="compare-title">文本B（标红为重复片段）</div>
+            <div class="compare-view" id="viewB"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+    // ===================== DOM节点获取 =====================
+    const ta = document.getElementById('ta');
+    const tb = document.getElementById('tb');
+    const btnCheck = document.getElementById('btnCheck');
+    const btnClear = document.getElementById('btnClear');
+    const btnCopy = document.getElementById('btnCopy');
+    const resultBox = document.getElementById('resultBox');
+    const scoreText = document.getElementById('scoreText');
+    const viewA = document.getElementById('viewA');
+    const viewB = document.getElementById('viewB');
+    const toast = document.getElementById('toast');
+
+    // ===================== Toast提示函数 =====================
+    function toastShow(msg) {
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 1800);
+    }
+
+    // ===================== N-Gram 生成函数（2字滑动窗口） =====================
+    function getNgram(text, n = 2) {
+        const cleanText = text.replace(/\s/g, '');
+        const gramSet = new Set();
+        for (let i = 0; i <= cleanText.length - n; i++) {
+            const gram = cleanText.slice(i, i + n);
+            gramSet.add(gram);
+        }
+        return gramSet;
+    }
+
+    // ===================== 余弦相似度计算 =====================
+    function calcCosine(setA, setB) {
+        const union = new Set([...setA, ...setB]);
+        let dot = 0, magA = 0, magB = 0;
+        for (const key of union) {
+            const a = setA.has(key) ? 1 : 0;
+            const b = setB.has(key) ? 1 : 0;
+            dot += a * b;
+            magA += a * a;
+            magB += b * b;
+        }
+        if (magA === 0 || magB === 0) return 0;
+        return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+    }
+
+    // ===================== 文本片段标红渲染 =====================
+    function renderMark(text, dupGrams, n = 2) {
+        const clean = text.replace(/\s/g, '');
+        const markArr = Array(clean.length).fill(false);
+        // 标记所有重复ngram覆盖位置
+        for (const gram of dupGrams) {
+            let pos = 0;
+            while (pos <= clean.length - n) {
+                if (clean.slice(pos, pos + n) === gram) {
+                    for (let i = 0; i < n; i++) {
+                        markArr[pos + i] = true;
+                    }
+                    pos += n;
+                } else {
+                    pos += 1;
+                }
+            }
+        }
+        // 拼接带标签HTML
+        let html = '';
+        for (let i = 0; i < clean.length; i++) {
+            if (markArr[i]) {
+                html += `<span class="dup">${clean[i]}</span>`;
+            } else {
+                html += clean[i];
+            }
+        }
+        return html;
+    }
+
+    // ===================== 查重主逻辑 =====================
+    function startCheck() {
+        const strA = ta.value.trim();
+        const strB = tb.value.trim();
+        if (!strA || !strB) {
+            toastShow('两段文本都不能为空！');
+            return;
+        }
+        const gramA = getNgram(strA, 2);
+        const gramB = getNgram(strB, 2);
+        // 求交集：共同的短语片段
+        const dupGrams = new Set([...gramA].filter(x => gramB.has(x)));
+        const sim = calcCosine(gramA, gramB);
+        const percent = (sim * 100).toFixed(2);
+
+        // 渲染标红内容
+        viewA.innerHTML = renderMark(strA, dupGrams, 2);
+        viewB.innerHTML = renderMark(strB, dupGrams, 2);
+        scoreText.innerText = `${percent}%`;
+
+        // 分数颜色分级
+        scoreText.className = 'score-value';
+        if (sim >= 0.6) {
+            scoreText.classList.add('score-high');
+        } else if (sim >= 0.3) {
+            scoreText.classList.add('score-mid');
+        } else {
+            scoreText.classList.add('score-low');
+        }
+        resultBox.classList.add('active');
+    }
+
+    // ===================== 清空全部 =====================
+    function clearAll() {
+        ta.value = '';
+        tb.value = '';
+        resultBox.classList.remove('active');
+        toastShow('已清空');
+    }
+
+    // ===================== 复制结果 =====================
+    async function copyResult() {
+        const report = `【本地文本查重报告】
+相似度：${scoreText.innerText}
+--------------------------
+文本A：
+${ta.value}
+--------------------------
+文本B：
+${tb.value}`;
+        try {
+            await navigator.clipboard.writeText(report);
+            toastShow('报告复制成功');
+        } catch (err) {
+            toastShow('复制失败，请手动复制文本');
+        }
+    }
+
+    // ===================== 绑定点击事件 =====================
+    btnCheck.addEventListener('click', startCheck);
+    btnClear.addEventListener('click', clearAll);
+    btnCopy.addEventListener('click', copyResult);
+</script>
+</body>
+</html>
